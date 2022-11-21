@@ -224,26 +224,30 @@ const getEvents = async (
   // possibleAppeals... todo just create the entity for it. timestamp and item relation.
   // L354 classic
   const possibleAppeals = `
-  possibleAppeals(where: {timestamp_gte: ${start}, timestamp_lt: ${end}}) {
-    registry {
-      id
+  possibleAppeals: rounds(where: {appealPeriodStart_gte: ${start}, appealPeriodStart_lt: ${end}}) {
+    request {
+      item {
+        itemID
+        registry {
+          id
+        }
+      }
     }
-    item {
-      itemID
-    }
-    timestamp
+    appealPeriodStart
   }
   `
 
   const lightPossibleAppeals = `
-  lightPossibleAppeals: lpossibleAppeals(where: {timestamp_gte: ${start}, timestamp_lt: ${end}}) {
-    registry {
-      id
+  lightPossibleAppeals: lrounds(where: {appealPeriodStart_gte: ${start}, appealPeriodStart_lt: ${end}}) {
+    request {
+      item {
+        itemID
+        registry {
+          id
+        }
+      }
     }
-    item {
-      itemID
-    }
-    timestamp
+    appealPeriodStart
   }
   `
 
