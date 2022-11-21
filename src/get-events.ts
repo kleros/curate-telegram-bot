@@ -221,8 +221,6 @@ const getEvents = async (
   }
   `
 
-  // possibleAppeals... todo just create the entity for it. timestamp and item relation.
-  // L354 classic
   const possibleAppeals = `
   possibleAppeals: rounds(where: {appealPeriodStart_gte: ${start}, appealPeriodStart_lt: ${end}}) {
     request {
@@ -230,6 +228,9 @@ const getEvents = async (
         itemID
         registry {
           id
+          registrationMetaEvidence {
+            URI
+          }
         }
       }
     }
@@ -244,6 +245,9 @@ const getEvents = async (
         itemID
         registry {
           id
+          registrationMetaEvidence {
+            URI
+          }
         }
       }
     }
@@ -251,28 +255,37 @@ const getEvents = async (
   }
   `
 
-  // appealDecisions... ^^^
   const appealDecisions = `
-  appealDecisions(where: {timestamp_gte: ${start}, timestamp_lt: ${end}}) {
-    registry {
-      id
+  appealDecisions: rounds(where: {appealedAt_gte: ${start}, appealedAt_lt: ${end}}) {
+    request {
+      item {
+        itemID
+        registry {
+          id
+          registrationMetaEvidence {
+            URI
+          }
+        }
+      }
     }
-    item {
-      itemID
-    }
-    timestamp
+    appealedAt
   }
   `
 
   const lightAppealDecisions = `
-  lightAppealDecisions: lappealDecisions(where: {timestamp_gte: ${start}, timestamp_lt: ${end}}) {
-    registry {
-      id
+  lightAppealDecisions: lrounds(where: {appealedAt_gte: ${start}, appealedAt_lt: ${end}}) {
+    request {
+      item {
+        itemID
+        registry {
+          id
+          registrationMetaEvidence {
+            URI
+          }
+        }
+      }
     }
-    item {
-      itemID
-    }
-    timestamp
+    appealedAt
   }
   `
 
