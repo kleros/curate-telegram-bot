@@ -1,4 +1,4 @@
-import { fstat, writeFileSync } from "fs"
+import { writeFileSync } from "fs"
 import fetch from "node-fetch"
 
 interface EventDetails {}
@@ -201,21 +201,25 @@ const getEvents = async (
   // if fees are fully funded for that side, that's equivalent to "HasPaidAppealFees" timestamp
   const lightHasPaidAppealFee = `
   lightFullyAppealedRequester: lrounds(where: {hasPaidRequester: true, lastFundedRequester_gte: ${start}, lastFundedRequester_lt: ${end}}) {
-    registry {
-      id
-    }
-    item {
-      itemID
+    request {
+      item {
+        itemID
+        registry {
+          id
+        }
+      }
     }
     lastFundedRequester
   }
 
   lightFullyAppealedChallenger: lrounds(where: {hasPaidChallenger: true, lastFundedChallenger_gte: ${start}, lastFundedChallenger_lt: ${end}}) {
-    registry {
-      id
-    }
-    item {
-      itemID
+    request {
+      item {
+        itemID
+        registry {
+          id
+        }
+      }
     }
     lastFundedChallenger
   }
@@ -316,7 +320,8 @@ const getEvents = async (
     item {
       itemID
     }
-    timestamp
+    finalRuling
+    resolutionTime
   }
   `
 
@@ -325,6 +330,7 @@ const getEvents = async (
   // add timestamp in levidence
 
   const fullQuery = `
+  {
     ${requestsSubmitted}
 
     ${lightRequestsSubmitted}
@@ -356,19 +362,26 @@ const getEvents = async (
     ${rulings}
 
     ${lightRulings}
+  }
   `
+  
+  writeFileSync("query.txt", fullQuery)
 
   const response = await fetch(
-    "https://api.thegraph.com/subgraphs/name/kleros/curate",
+    "https://api.thegraph.com/subgraphs/name/greenlucid/legacy-curate-mainnet",
     {
       method: "POST",
       body: JSON.stringify(fullQuery),
     }
   )
 
-  const { data } = (await response.json()) as any
+  const text = await response.text() as any
 
-  writeFileSync("testfile.json", JSON.stringify(data))
+  writeFileSync("textfile.txt", text)
+
+  //const { data } = (await response.json()) as any
+
+  //writeFileSync("testfile.json", JSON.stringify(data))
 
   return []
 }
