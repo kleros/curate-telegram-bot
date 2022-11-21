@@ -289,24 +289,24 @@ const getEvents = async (
   }
   `
 
-  // rulings... ^^^
   const rulings = `
-  rulings(where: {timestamp_gte: ${start}, timestamp_lt: ${end}}) {
-    registry {
-      id
-      registrationMetaEvidence {
-        URI
-      }
-    }
+  rulings: requests(where: {finalRuling_not: null, resolutionTime_gte: ${start}, resolutionTime_lt: ${end}}) {
     item {
       itemID
+      registry {
+        id
+        registrationMetaEvidence {
+          URI
+        }
+      }
     }
-    timestamp
+    finalRuling
+    resolutionTime
   }
   `
 
   const lightRulings = `
-  lightRulings: lrulings(where: {timestamp_gte: ${start}, timestamp_lt: ${end}}) {
+  lightRulings: lrequests(where: {finalRuling_not: null, resolutionTime_gte: ${start}, resolutionTime_lt: ${end}}) {
     registry {
       id
       registrationMetaEvidence {
