@@ -1,9 +1,17 @@
 import { writeFileSync } from "fs"
+import { request } from "http"
 import fetch from "node-fetch"
 
-interface EventDetails {}
+interface EventDetails {
+  registrationMetaEvidenceURI?: string
+  finalRuling?: number
+  requestType?: "RegistrationRequested" | "ClearingRequested"
+  party?: string
+  side?: number
+}
 
 interface CurateEvent {
+  timestamp: number
   itemId: string
   tcrAddress: string
   type: string
@@ -11,11 +19,240 @@ interface CurateEvent {
   details: EventDetails
 }
 
+// on the interest of time
+// and since I'm doing graphql queries in a raw fetch way (and I shouldn't have)
+// i will pass args as <any> to the event parsers
+// instead of creating interfaces like the following below:
+/*interface RawRequestSubmitted {
+  requester: string
+  requestType: "RegistrationRequested" | "ClearingRequested"
+  submissionTime: number
+}*/
+
+const parseRequestSubmitted = (
+  request: any,
+  version: "classic" | "light"
+): CurateEvent => {
+  return {
+    timestamp: request.submissionTime,
+    itemId: request.item.itemID,
+    tcrAddress: request.registry.id,
+    type: "RequestSubmitted",
+    version: version,
+    details: {
+      registrationMetaEvidenceURI:
+        request.registry.registrationMetaEvidence.URI,
+    },
+  }
+}
+
+// note, if finalRuling is null, take the requestType to derive what happened.
+// we don't use "disputeOutcome" because we can't tell if refuse to arbitrate
+const parseRequestResolved = (
+  request: any,
+  version: "classic" | "light"
+): CurateEvent => {
+  return {
+    timestamp: request.resolutionTime,
+    itemId: request.item.itemID,
+    tcrAddress: request.registry.id,
+    type: "RequestResolved",
+    version: version,
+    details: {
+      registrationMetaEvidenceURI:
+        request.registry.registrationMetaEvidence.URI,
+      finalRuling: request.finalRuling,
+      requestType: request.requestType,
+    },
+  }
+}
+
+const parseDispute = (
+  request: any,
+  version: "classic" | "light"
+): CurateEvent | null => {
+  // this was not a dispute creation
+  if (request.rounds.length !== 2) return null
+  // note, rounds are ordered desc, so, 1st elem in rounds is the dispute creation
+  return {
+    timestamp: request.rounds[0].creationTime,
+    itemId: request.itemID,
+    tcrAddress: request.registry.id,
+    type: "Dispute",
+    version: version,
+    details: {
+      registrationMetaEvidenceURI:
+        request.registry.registrationMetaEvidence.URI,
+    },
+  }
+}
+
+const parseEvidence = (
+  evidence: any,
+  version: "classic" | "light"
+): CurateEvent => {
+  return {
+    timestamp: evidence.timestamp,
+    itemId: evidence.request.itemID,
+    tcrAddress: evidence.request.registry.id,
+    type: "Evidence",
+    version: version,
+    details: {
+      registrationMetaEvidenceURI:
+        evidence.request.registry.registrationMetaEvidence.URI,
+      party: evidence.party,
+      requestType: evidence.request.requestType,
+    },
+  }
+}
+
+// hasPaidAppealFee is pretty complicated, you need 2 parsers
+const parseHasPaidAppealFee = (hasPaidAppealFee: any): CurateEvent => {
+  return {
+    timestamp: hasPaidAppealFee.timestamp,
+    itemId: hasPaidAppealFee.round.request.item.itemID,
+    tcrAddress: hasPaidAppealFee.round.request.registry.id,
+    type: "HasPaidAppealFee",
+    version: "classic",
+    details: {
+      registrationMetaEvidenceURI:
+        hasPaidAppealFee.round.request.registry.registrationMetaEvidence.URI,
+      side: hasPaidAppealFee.side,
+    },
+  }
+}
+
+/** 1 is requester, 2 is challenger */
+const parseLightHasPaidAppealFee = (thing: any, side: number): CurateEvent => {
+  return {
+    timestamp:
+      side === 1 ? thing.lastFundedRequester : thing.lastFundedChallenger,
+    itemId: thing.request.item.itemID,
+    tcrAddress: thing.request.item.registry.id,
+    type: "HasPaidAppealFee",
+    version: "light",
+    details: {
+      side: side,
+    },
+  }
+}
+
+const parseAppealPossible = (
+  round: any,
+  version: "classic" | "light"
+): CurateEvent => {
+  return {
+    timestamp: round.appealPeriodStart,
+    itemId: round.request.item.itemID,
+    tcrAddress: round.request.registry.id,
+    type: "AppealPossible",
+    version: version,
+    details: {},
+  }
+}
+
+const parseAppealDecision = (
+  round: any,
+  version: "classic" | "light"
+): CurateEvent => {
+  return {
+    timestamp: round.appealedAt,
+    itemId: round.request.item.itemID,
+    tcrAddress: round.request.item.registry.id,
+    type: "AppealDecision",
+    version: version,
+    details: {},
+  }
+}
+
+const parseRuling = (
+  request: any,
+  version: "classic" | "light"
+): CurateEvent => {
+  return {
+    timestamp: request.resolutionTime,
+    itemId: request.item.itemID,
+    tcrAddress: request.item.registry.id,
+    type: "Ruling",
+    version: version,
+    details: {
+      registrationMetaEvidenceURI:
+        request.item.registry.registrationMetaEvidence.URI,
+      finalRuling: request.finalRuling,
+      requestType: request.requestType,
+    },
+  }
+}
+
+const parseAllEvents = (data: any): CurateEvent[] => {
+  const requestsSubmitted = data.requestsSubmitted.map((r: any) =>
+    parseRequestSubmitted(r, "classic")
+  )
+  const lightRequestsSubmitted = data.lightRequestsSubmitted.map((r: any) =>
+    parseRequestSubmitted(r, "light")
+  )
+  const requestsResolved = data.requestsResolved.map((r: any) =>
+    parseRequestResolved(r, "classic")
+  )
+  const lightRequestsResolved = data.lightRequestsResolved.map((r: any) =>
+    parseRequestResolved(r, "light")
+  )
+  const disputes = data.disputes.map((r: any) => parseDispute(r, "classic"))
+  const lightDisputes = data.lightDisputes.map((r: any) =>
+    parseDispute(r, "light")
+  )
+  const evidences = data.evidences.map((r: any) => parseEvidence(r, "classic"))
+  const lightEvidences = data.evidences.map((r: any) =>
+    parseEvidence(r, "light")
+  )
+  const hasPaidAppealFees = data.hasPaidAppealFees.map((r: any) =>
+    parseHasPaidAppealFee(r)
+  )
+  const lightHasPaidAppealFeesRequester = data.lightFullyAppealedRequester.map(
+    (r: any) => parseLightHasPaidAppealFee(r, 1)
+  )
+  const lightHasPaidAppealFeesChallenger =
+    data.lightFullyAppealedChallenger.map((r: any) =>
+      parseLightHasPaidAppealFee(r, 2)
+    )
+
+  const appealDecisions = data.appealDecisions.map((r: any) =>
+    parseAppealDecision(r, "classic")
+  )
+  const lightAppealDecisions = data.lightAppealDecisions.map((r: any) =>
+    parseAppealDecision(r, "light")
+  )
+
+  const rulings = data.rulings.map((r: any) => parseRuling(r, "classic"))
+  const lightRulings = data.lightRulings.map((r: any) =>
+    parseRuling(r, "light")
+  )
+
+  const allEvents = [
+    requestsSubmitted,
+    lightRequestsSubmitted,
+    requestsResolved,
+    lightRequestsResolved,
+    disputes,
+    lightDisputes,
+    evidences,
+    lightEvidences,
+    hasPaidAppealFees,
+    lightHasPaidAppealFeesRequester,
+    lightHasPaidAppealFeesChallenger,
+    appealDecisions,
+    lightAppealDecisions,
+    rulings,
+    lightRulings,
+  ].flat()
+
+  return allEvents
+}
+
 const getEvents = async (
   start: number,
   end: number
 ): Promise<CurateEvent[]> => {
-  const history: CurateEvent[] = []
   // note for the future. it could be easier to just store the events as immutable entities
   // in the subgraph as they come, and as they are.
 
@@ -32,12 +269,12 @@ const getEvents = async (
 
   const requestsSubmitted = `
   requestsSubmitted: requests(where: {submissionTime_gte: ${start}, submissionTime_lt: ${end}}) {
-    id
     requester
     requestType
     submissionTime
     item {
       id
+      itemID
     }
     registry {
       id
@@ -55,7 +292,7 @@ const getEvents = async (
     requestType
     submissionTime
     item {
-      id
+      itemID
     }
     registry {
       id
@@ -68,14 +305,12 @@ const getEvents = async (
 
   const requestsResolved = `
   requestsResolved: requests(where: {resolutionTime_gte: ${start}, resolutionTime_lt: ${end}}) {
-    id
     requester
     requestType
-    disputed
-    disputeOutcome
-    submissionTime
+    finalRuling
+    resolutionTime
     item {
-      id
+      itemID
     }
     registry {
       id
@@ -88,14 +323,12 @@ const getEvents = async (
 
   const lightRequestsResolved = `
   lightRequestsResolved: lrequests(where: {resolutionTime_gte: ${start}, resolutionTime_lt: ${end}}) {
-    id
     requester
     requestType
-    disputed
-    disputeOutcome
-    submissionTime
+    finalRuling
+    resolutionTime
     item {
-      id
+      itemID
     }
     registry {
       id
@@ -110,16 +343,17 @@ const getEvents = async (
   // within the period. (just check rounds[0].creationTime)
   const disputes = `
   disputes: requests(where: {numberOfRounds: 2, rounds_: {creationTime_gte: ${start}, creationTime_lt: ${end}}}) {
-    id
     requestType
     item {
-      id
+      itemID
     }
     registry {
       id
+      registrationMetaEvidence {
+        URI
+      }
     }
-    rounds(first: 1, orderBy: creationTime, orderDirection: desc) {
-			id
+    rounds(orderBy: creationTime, orderDirection: desc) {
       creationTime
     }
   }
@@ -127,16 +361,17 @@ const getEvents = async (
 
   const lightDisputes = `
   lightDisputes: lrequests(where: {numberOfRounds: 2, rounds_: {creationTime_gte: ${start}, creationTime_lt: ${end}}}) {
-    id
     requestType
     item {
-      id
+      itemID
     }
     registry {
       id
+      registrationMetaEvidence {
+        URI
+      }
     }
-    rounds(first: 1, orderBy: creationTime, orderDirection: desc) {
-			id
+    rounds(orderBy: creationTime, orderDirection: desc) {
       creationTime
     }
   }
@@ -144,9 +379,10 @@ const getEvents = async (
 
   const evidences = `
   evidences: evidences(where: {timestamp_gte: ${start}, timestamp_lt: ${end}}) {
-    id
     party
+    timestamp
     request {
+      requestType
       item {
         itemID
       }
@@ -164,7 +400,9 @@ const getEvents = async (
   lightEvidences: levidences(where: {timestamp_gte: ${start}, timestamp_lt: ${end}}) {
     id
     party
+    timestamp
     request {
+      requestType
       item {
         itemID
       }
@@ -186,6 +424,9 @@ const getEvents = async (
       request {
         registry {
           id
+          registrationMetaEvidence {
+            URI
+          }
         }
         item {
           itemID
@@ -311,15 +552,16 @@ const getEvents = async (
 
   const lightRulings = `
   lightRulings: lrequests(where: {finalRuling_not: null, resolutionTime_gte: ${start}, resolutionTime_lt: ${end}}) {
-    registry {
-      id
-      registrationMetaEvidence {
-        URI
-      }
-    }
     item {
       itemID
+      registry {
+        id
+        registrationMetaEvidence {
+          URI
+        }
+      }
     }
+    requestType
     finalRuling
     resolutionTime
   }
@@ -364,26 +606,22 @@ const getEvents = async (
     ${lightRulings}
   }
   `
-  
-  writeFileSync("query.txt", fullQuery)
 
   const response = await fetch(
     "https://api.thegraph.com/subgraphs/name/greenlucid/legacy-curate-mainnet",
     {
       method: "POST",
-      body: JSON.stringify(fullQuery),
+      body: JSON.stringify({ query: fullQuery }),
     }
   )
 
-  const text = await response.text() as any
+  const { data } = (await response.json()) as any
 
-  writeFileSync("textfile.txt", text)
+  const history = parseAllEvents(data)
 
-  //const { data } = (await response.json()) as any
+  writeFileSync("superfile.json", JSON.stringify(history), "utf-8")
 
-  //writeFileSync("testfile.json", JSON.stringify(data))
-
-  return []
+  return history
 }
 
 export default getEvents

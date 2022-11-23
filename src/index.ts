@@ -13,7 +13,8 @@ const updateSavefile = (): number => {
   const lastTimestamp = getNow()
   console.log("Saving timestamp to present.")
   const savefile: string = JSON.stringify({ lastTimestamp })
-  fs.writeFileSync("./savefile.json", savefile, "utf-8")
+  // hack for testing! todo remove
+  //fs.writeFileSync("./savefile.json", savefile, "utf-8")
   return lastTimestamp
 }
 
