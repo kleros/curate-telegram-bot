@@ -20,10 +20,10 @@ const handleRequestSubmitted = async (
   }
 
   const link = `${config.GTCR_UI_URL}/tcr/${config.CHAIN_ID}/${event.tcrAddress}/${event.itemId}`
-  const meta = await getMetaEvidence(event)
+  let meta = await getMetaEvidence(event)
   if (!meta) {
-    console.warn("Error fetching metaevidence, will not emit", event)
-    return
+    console.warn("Error fetching metaevidence, will be assuming")
+    meta = { itemName: "item", tcrTitle: "List" }
   }
 
   const ethValues = await getFormattedEthValues(event.tcrAddress, event.version)

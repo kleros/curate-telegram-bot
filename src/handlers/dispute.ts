@@ -29,7 +29,7 @@ const handleDispute = async (
   let meta = await getMetaEvidence(event)
   if (!meta) {
     console.warn("Error fetching metaevidence, will be assuming")
-    meta = { itemName: "item", tcrTitle: "Unknown" }
+    meta = { itemName: "item", tcrTitle: "List" }
   }
 
   const key = getKey(event)

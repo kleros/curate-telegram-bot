@@ -20,11 +20,12 @@ const handleEvidence = async (
   }
 
   const link = `${config.GTCR_UI_URL}/tcr/${config.CHAIN_ID}/${event.tcrAddress}/${event.itemId}`
-  const meta = await getMetaEvidence(event)
+  let meta = await getMetaEvidence(event)
   if (!meta) {
-    console.warn("Error fetching metaevidence, will not emit", event)
-    return
+    console.warn("Error fetching metaevidence, will be assuming")
+    meta = { itemName: "item", tcrTitle: "List" }
   }
+
 
   const key = getKey(event)
   const twitterId = await dbAttempt(key, db)
@@ -37,8 +38,8 @@ const handleEvidence = async (
       ? "removal request"
       : "submission"
   } of ${articleFor(meta.itemName)} ${meta.itemName} ${
-    event.details.requestType === "ClearingRequested" ? "from the" : "to the"
-  } ${meta.tcrTitle} List in ${config.NETWORK_NAME}.
+    event.details.requestType === "ClearingRequested" ? "from" : "to"
+  } ${meta.tcrTitle} in ${config.NETWORK_NAME}.
       \n\nListing: ${link}`
 
   console.info("-------vvvvvvv-------")

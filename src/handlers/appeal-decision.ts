@@ -19,11 +19,6 @@ const handleAppealDecision = async (event: CurateEvent, db: Level<string, string
   }
 
   const link = `${config.GTCR_UI_URL}/tcr/${config.CHAIN_ID}/${event.tcrAddress}/${event.itemId}`
-  const meta = await getMetaEvidence(event)
-  if (!meta) {
-    console.warn("Error fetching metaevidence, will not emit", event)
-    return
-  }
 
   const key = getKey(event)
   const twitterId = await dbAttempt(key, db)
