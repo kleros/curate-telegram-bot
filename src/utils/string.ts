@@ -1,7 +1,7 @@
 import config from "../config"
 import { CurateEvent } from "../get-events"
 
-export const isVowel = (c: string) => ["aiueo"].includes(c.toLowerCase())
+export const isVowel = (c: string) => "aiueo".includes(c.toLowerCase())
 
 export const truncateETHValue = (n: string, decimals = 2) =>
   n.slice(0, String(n).indexOf(".") + 1 + decimals)
