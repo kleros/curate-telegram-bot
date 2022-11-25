@@ -121,21 +121,6 @@ const parseHasPaidAppealFee = (hasPaidAppealFee: any): CurateEvent => {
   }
 }
 
-/** 1 is requester, 2 is challenger */
-const parseLightHasPaidAppealFee = (thing: any, side: number): CurateEvent => {
-  return {
-    timestamp:
-      side === 1 ? thing.lastFundedRequester : thing.lastFundedChallenger,
-    itemId: thing.request.item.itemID,
-    tcrAddress: thing.request.item.registry.id,
-    type: "HasPaidAppealFee",
-    version: "light",
-    details: {
-      side: side,
-    },
-  }
-}
-
 const parseAppealPossible = (
   round: any,
   version: "classic" | "light"
@@ -210,13 +195,6 @@ const parseAllEvents = (data: any): CurateEvent[] => {
   const hasPaidAppealFees = data.hasPaidAppealFees.map((r: any) =>
     parseHasPaidAppealFee(r)
   )
-  const lightHasPaidAppealFeesRequester = data.lightFullyAppealedRequester.map(
-    (r: any) => parseLightHasPaidAppealFee(r, 1)
-  )
-  const lightHasPaidAppealFeesChallenger =
-    data.lightFullyAppealedChallenger.map((r: any) =>
-      parseLightHasPaidAppealFee(r, 2)
-    )
 
   const appealPossibles = data.possibleAppeals.map((r: any) =>
     parseAppealPossible(r, "classic")
@@ -247,8 +225,6 @@ const parseAllEvents = (data: any): CurateEvent[] => {
     evidences,
     lightEvidences,
     hasPaidAppealFees,
-    lightHasPaidAppealFeesRequester,
-    lightHasPaidAppealFeesChallenger,
     appealPossibles,
     lightAppealPossibles,
     appealDecisions,
@@ -445,38 +421,6 @@ const getEvents = async (
   }
   `
 
-  // ^ this event doesn't exist in light curate. we're going to take an alternative approach.
-  // two queries, one for requester and one for challenger.
-  // todo add timestamp of last contribution to x side.
-  // if fees are fully funded for that side, that's equivalent to "HasPaidAppealFees" timestamp
-  const lightHasPaidAppealFee = `
-  lightFullyAppealedRequester: lrounds(where: {hasPaidRequester: true, lastFundedRequester_gte: ${start}, lastFundedRequester_lt: ${end}}) {
-    id
-    request {
-      item {
-        itemID
-        registry {
-          id
-        }
-      }
-    }
-    lastFundedRequester
-  }
-
-  lightFullyAppealedChallenger: lrounds(where: {hasPaidChallenger: true, lastFundedChallenger_gte: ${start}, lastFundedChallenger_lt: ${end}}) {
-    id
-    request {
-      item {
-        itemID
-        registry {
-          id
-        }
-      }
-    }
-    lastFundedChallenger
-  }
-  `
-
   const possibleAppeals = `
   possibleAppeals: rounds(where: {appealPeriodStart_gte: ${start}, appealPeriodStart_lt: ${end}}) {
     request {
@@ -602,8 +546,6 @@ const getEvents = async (
 
     ${hasPaidAppealFee}
 
-    ${lightHasPaidAppealFee}
-
     ${possibleAppeals}
 
     ${lightPossibleAppeals}
@@ -640,29 +582,11 @@ const getEvents = async (
       end > dispute.rounds[1].creationTime
   )
 
-  // another hack is needed here. first "round" doesn't count.
-  const filteredLightFullyAppealedRequester =
-    data.lightFullyAppealedRequester.filter(
-      (round: any) => round.id.split("-")[2] !== "0"
-    )
-
-  const filteredLightFullyAppealedChallenger =
-    data.lightFullyAppealedChallenger.filter(
-      (round: any) => round.id.split("-")[2] !== "0"
-    )
-
-  console.log({
-    len1: filteredLightFullyAppealedRequester.length,
-    len2: filteredLightFullyAppealedChallenger,
-  })
-
   // we hack the filtered disputes in there.
   const parsedEvents = parseAllEvents({
     ...data,
     disputes: filteredDisputes,
     lightDisputes: filteredLightDisputes,
-    lightFullyAppealedRequester: filteredLightFullyAppealedRequester,
-    lightFullyAppealedChallenger: filteredLightFullyAppealedChallenger,
   })
 
   // force the timestamps into being actual timestamps. they were strings before.
