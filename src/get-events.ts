@@ -1,6 +1,6 @@
 import { writeFileSync } from "fs"
-import { request } from "http"
 import fetch from "node-fetch"
+import config from "./config"
 
 interface EventDetails {
   registrationMetaEvidenceURI?: string
@@ -10,7 +10,7 @@ interface EventDetails {
   side?: number
 }
 
-interface CurateEvent {
+export interface CurateEvent {
   timestamp: number
   itemId: string
   tcrAddress: string
@@ -42,6 +42,7 @@ const parseRequestSubmitted = (
     details: {
       registrationMetaEvidenceURI:
         request.registry.registrationMetaEvidence.URI,
+      requestType: request.requestType,
     },
   }
 }
@@ -71,18 +72,16 @@ const parseDispute = (
   request: any,
   version: "classic" | "light"
 ): CurateEvent | null => {
-  // this was not a dispute creation
-  if (request.rounds.length !== 2) return null
-  // note, rounds are ordered desc, so, 1st elem in rounds is the dispute creation
   return {
-    timestamp: request.rounds[0].creationTime,
-    itemId: request.itemID,
+    timestamp: request.rounds[1].creationTime,
+    itemId: request.item.itemID,
     tcrAddress: request.registry.id,
     type: "Dispute",
     version: version,
     details: {
       registrationMetaEvidenceURI:
         request.registry.registrationMetaEvidence.URI,
+      requestType: request.requestType,
     },
   }
 }
@@ -144,7 +143,7 @@ const parseAppealPossible = (
   return {
     timestamp: round.appealPeriodStart,
     itemId: round.request.item.itemID,
-    tcrAddress: round.request.registry.id,
+    tcrAddress: round.request.item.registry.id,
     type: "AppealPossible",
     version: version,
     details: {},
@@ -197,10 +196,13 @@ const parseAllEvents = (data: any): CurateEvent[] => {
   const lightRequestsResolved = data.lightRequestsResolved.map((r: any) =>
     parseRequestResolved(r, "light")
   )
-  const disputes = data.disputes.map((r: any) => parseDispute(r, "classic"))
-  const lightDisputes = data.lightDisputes.map((r: any) =>
-    parseDispute(r, "light")
-  )
+
+  const disputes = data.disputes
+    .map((r: any) => parseDispute(r, "classic"))
+    .filter((r: CurateEvent | null) => r)
+  const lightDisputes = data.lightDisputes
+    .map((r: any) => parseDispute(r, "light"))
+    .filter((r: CurateEvent | null) => r)
   const evidences = data.evidences.map((r: any) => parseEvidence(r, "classic"))
   const lightEvidences = data.evidences.map((r: any) =>
     parseEvidence(r, "light")
@@ -215,6 +217,13 @@ const parseAllEvents = (data: any): CurateEvent[] => {
     data.lightFullyAppealedChallenger.map((r: any) =>
       parseLightHasPaidAppealFee(r, 2)
     )
+
+  const appealPossibles = data.possibleAppeals.map((r: any) =>
+    parseAppealPossible(r, "classic")
+  )
+  const lightAppealPossibles = data.lightPossibleAppeals.map((r: any) =>
+    parseAppealPossible(r, "light")
+  )
 
   const appealDecisions = data.appealDecisions.map((r: any) =>
     parseAppealDecision(r, "classic")
@@ -240,6 +249,8 @@ const parseAllEvents = (data: any): CurateEvent[] => {
     hasPaidAppealFees,
     lightHasPaidAppealFeesRequester,
     lightHasPaidAppealFeesChallenger,
+    appealPossibles,
+    lightAppealPossibles,
     appealDecisions,
     lightAppealDecisions,
     rulings,
@@ -339,10 +350,8 @@ const getEvents = async (
   }
   `
 
-  // this one will be filtered after the act, to check that the second round is the one
-  // within the period. (just check rounds[0].creationTime)
   const disputes = `
-  disputes: requests(where: {numberOfRounds: 2, rounds_: {creationTime_gte: ${start}, creationTime_lt: ${end}}}) {
+  disputes: requests(where: {rounds_: {creationTime_gte: ${start}, creationTime_lt: ${end}}}) {
     requestType
     item {
       itemID
@@ -353,14 +362,14 @@ const getEvents = async (
         URI
       }
     }
-    rounds(orderBy: creationTime, orderDirection: desc) {
+    rounds(orderBy: creationTime) {
       creationTime
     }
   }
   `
 
   const lightDisputes = `
-  lightDisputes: lrequests(where: {numberOfRounds: 2, rounds_: {creationTime_gte: ${start}, creationTime_lt: ${end}}}) {
+  lightDisputes: lrequests(where: {rounds_: {creationTime_gte: ${start}, creationTime_lt: ${end}}}) {
     requestType
     item {
       itemID
@@ -371,7 +380,7 @@ const getEvents = async (
         URI
       }
     }
-    rounds(orderBy: creationTime, orderDirection: desc) {
+    rounds(orderBy: creationTime) {
       creationTime
     }
   }
@@ -442,6 +451,7 @@ const getEvents = async (
   // if fees are fully funded for that side, that's equivalent to "HasPaidAppealFees" timestamp
   const lightHasPaidAppealFee = `
   lightFullyAppealedRequester: lrounds(where: {hasPaidRequester: true, lastFundedRequester_gte: ${start}, lastFundedRequester_lt: ${end}}) {
+    id
     request {
       item {
         itemID
@@ -454,6 +464,7 @@ const getEvents = async (
   }
 
   lightFullyAppealedChallenger: lrounds(where: {hasPaidChallenger: true, lastFundedChallenger_gte: ${start}, lastFundedChallenger_lt: ${end}}) {
+    id
     request {
       item {
         itemID
@@ -607,19 +618,61 @@ const getEvents = async (
   }
   `
 
-  const response = await fetch(
-    "https://api.thegraph.com/subgraphs/name/greenlucid/legacy-curate-mainnet",
-    {
-      method: "POST",
-      body: JSON.stringify({ query: fullQuery }),
-    }
-  )
+  const response = await fetch(config.SUBGRAPH_URL, {
+    method: "POST",
+    body: JSON.stringify({ query: fullQuery }),
+  })
 
   const { data } = (await response.json()) as any
 
-  const history = parseAllEvents(data)
+  // we need start and end to filter these, so we do it here.
+  const filteredDisputes = data.disputes.filter(
+    (dispute: any) =>
+      dispute.rounds.length >= 2 &&
+      start <= dispute.rounds[1].creationTime &&
+      end > dispute.rounds[1].creationTime
+  )
 
-  writeFileSync("superfile.json", JSON.stringify(history), "utf-8")
+  const filteredLightDisputes = data.lightDisputes.filter(
+    (dispute: any) =>
+      dispute.rounds.length >= 2 &&
+      start <= dispute.rounds[1].creationTime &&
+      end > dispute.rounds[1].creationTime
+  )
+
+  // another hack is needed here. first "round" doesn't count.
+  const filteredLightFullyAppealedRequester =
+    data.lightFullyAppealedRequester.filter(
+      (round: any) => round.id.split("-")[2] !== "0"
+    )
+
+  const filteredLightFullyAppealedChallenger =
+    data.lightFullyAppealedChallenger.filter(
+      (round: any) => round.id.split("-")[2] !== "0"
+    )
+
+  console.log({
+    len1: filteredLightFullyAppealedRequester.length,
+    len2: filteredLightFullyAppealedChallenger,
+  })
+
+  // we hack the filtered disputes in there.
+  const parsedEvents = parseAllEvents({
+    ...data,
+    disputes: filteredDisputes,
+    lightDisputes: filteredLightDisputes,
+    lightFullyAppealedRequester: filteredLightFullyAppealedRequester,
+    lightFullyAppealedChallenger: filteredLightFullyAppealedChallenger,
+  })
+
+  // force the timestamps into being actual timestamps. they were strings before.
+  parsedEvents.forEach((thing) => {
+    thing.timestamp = Number(thing.timestamp)
+  })
+
+  const history = parsedEvents.sort((a, b) => a.timestamp - b.timestamp)
+
+  //writeFileSync("superfile.json", JSON.stringify(history), "utf-8")
 
   return history
 }
