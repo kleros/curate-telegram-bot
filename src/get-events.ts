@@ -189,7 +189,7 @@ const parseAllEvents = (data: any): CurateEvent[] => {
     .map((r: any) => parseDispute(r, "light"))
     .filter((r: CurateEvent | null) => r)
   const evidences = data.evidences.map((r: any) => parseEvidence(r, "classic"))
-  const lightEvidences = data.evidences.map((r: any) =>
+  const lightEvidences = data.lightEvidences.map((r: any) =>
     parseEvidence(r, "light")
   )
   const hasPaidAppealFees = data.hasPaidAppealFees.map((r: any) =>
