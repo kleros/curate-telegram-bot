@@ -16,8 +16,10 @@ export const sleep = (seconds = 0): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, seconds * 1000))
 }
 
+const filename = `./savefile-${config.CHAIN_ID}.json`
+
 const readSavefile = (): number => {
-  const lastTimestamp = JSON.parse(fs.readFileSync("./savefile.json", "utf-8"))
+  const lastTimestamp = JSON.parse(fs.readFileSync(filename, "utf-8"))
     .lastTimestamp as number
   return lastTimestamp
 }
@@ -26,14 +28,13 @@ const updateSavefile = (): number => {
   const lastTimestamp = getNow()
   console.log("Saving timestamp to present.")
   const savefile: string = JSON.stringify({ lastTimestamp })
-  // hack for testing! todo remove
-  //fs.writeFileSync("./savefile.json", savefile, "utf-8")
+  fs.writeFileSync(filename, savefile, "utf-8")
   return lastTimestamp
 }
 
 const run = async (): Promise<void> => {
   // if first time it's ran, if just creates savefile.json and halts
-  if (!fs.existsSync("./savefile.json")) {
+  if (!fs.existsSync(filename)) {
     console.log("First execution. We will only save this file.")
     updateSavefile()
     return
