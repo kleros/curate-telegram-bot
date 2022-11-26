@@ -14,11 +14,13 @@ interface Config {
   TWITTER_ACCESS_TOKEN: string
   TWITTER_ACCESS_TOKEN_SECRET: string
   IPFS_GATEWAY: string
+  LOOP_TIME: string
+  TWEET_DELAY: string
 }
 
 const getSanitizedConfig = (config: unknown): Config => {
   for (const [key, value] of Object.entries(
-    config as { [value: string]: string | undefined },
+    config as { [value: string]: string | undefined }
   )) {
     if (value === undefined) {
       throw new Error(`Missing key ${key} in config.env`)

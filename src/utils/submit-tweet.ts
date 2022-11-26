@@ -15,7 +15,7 @@ const submitTweet = async (
   key: string,
   db: Level<string, string>
 ) => {
-  if (process.env.node === "staging") {
+  if (config.NODE_ENV === "staging") {
     console.log("Won't submit tweet")
     return
   }
@@ -37,9 +37,9 @@ const submitTweet = async (
         in_reply_to_status_id: tweetID,
         auto_populate_reply_metadata: true,
       })
-    } catch (err) {
+    } catch (err: any) {
       console.log("Caught error submitting response tweet")
-      console.error(err)
+      console.error(err.errors)
     }
   if (tweet) {
     try {

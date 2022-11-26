@@ -1,8 +1,8 @@
 {
   "scripts": {
     "build": "tsc",
-    "start_": "node build/index.js",
-    "start": "ts-node --transpile-only --files -r dotenv-safe/config src/index.ts"
+    "loop:mainnet": "env-cmd -f ./.env.mainnet node build/loop.js",
+    "loop:xdai": "env-cmd -f ./.env.xdai node build/loop.js"
   },
   "prettier": {
     "semi": false
@@ -11,6 +11,7 @@
     "@types/ethereum-checksum-address": "^0.0.0",
     "@types/node": "^18.11.9",
     "@types/node-fetch": "^2.6.2",
+    "env-cmd": "^10.1.0",
     "eslint": "^8.27.0",
     "prettier": "^2.7.1",
     "ts-node": "^10.9.1",

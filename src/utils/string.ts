@@ -7,7 +7,7 @@ export const truncateETHValue = (n: string, decimals = 2) =>
   n.slice(0, String(n).indexOf(".") + 1 + decimals)
 
 export const truncateETHAddress = (ethAddr: string) =>
-  `${ethAddr.slice(0, 5)}...${ethAddr.slice(40)}`
+  `${ethAddr.slice(0, 6)}...${ethAddr.slice(38)}`
 
 export const capitalizeFirstLetter = (input: string) =>
   input.charAt(0).toUpperCase() + input.slice(1)

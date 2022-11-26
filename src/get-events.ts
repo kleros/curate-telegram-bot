@@ -92,7 +92,7 @@ const parseEvidence = (
 ): CurateEvent => {
   return {
     timestamp: evidence.timestamp,
-    itemId: evidence.request.itemID,
+    itemId: evidence.request.item.itemID,
     tcrAddress: evidence.request.registry.id,
     type: "Evidence",
     version: version,
