@@ -26,6 +26,10 @@ Watch and tweet about things happening on Kleros Curate.
 
 You can run this script as it is, or with cron. There are also `loop:<networkName>` yarn scripts to run this process automatically with pm2. Adding them is straightforward, just create a new `.env.<networkName>` and create the loop script for it.
 
+This is an example of how to set this loop with pm2:
+
+`pm2 start yarn --interpreter bash --name ctb-xdai -- loop:xdai`
+
 ## Architecture
 
 This bot purpose is to minimize RPC calls. The previous way of obtaining events was to create many event listeners for every GTCR and LightGTCR contract. Instead, this bot relies on subgraphs to obtain event information, with entities that store timestamps in some capacity.
