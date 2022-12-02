@@ -45,7 +45,8 @@ const run = async (): Promise<void> => {
   const present = updateSavefile()
 
   console.log(present - lastTimestamp, "seconds have passed since last run.")
-  const history = await getEvents(lastTimestamp, present)
+  const buffer = Number(config.SUBGRAPH_BUFFER_TIME)
+  const history = await getEvents(lastTimestamp - buffer, present - buffer)
 
   //const testHistory = history.filter((h) => h.type === "RequestResolved")
   console.log("Got", history.length, "events.")

@@ -15,6 +15,7 @@ interface Config {
   TWITTER_ACCESS_TOKEN_SECRET: string
   IPFS_GATEWAY: string
   LOOP_TIME: string
+  SUBGRAPH_BUFFER_TIME: string
   TWEET_DELAY: string
 }
 
