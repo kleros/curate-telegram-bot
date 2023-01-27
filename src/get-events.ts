@@ -7,6 +7,7 @@ interface EventDetails {
   requestType?: "RegistrationRequested" | "ClearingRequested"
   party?: string
   side?: number
+  itemStatus?: "Absent" | "Registered" | string
 }
 
 export interface CurateEvent {
@@ -62,7 +63,7 @@ const parseRequestResolved = (
       registrationMetaEvidenceURI:
         request.registry.registrationMetaEvidence.URI,
       finalRuling: request.finalRuling,
-      requestType: request.requestType,
+      itemStatus: request.item.status,
     },
   }
 }
@@ -297,6 +298,7 @@ const getEvents = async (
     resolutionTime
     item {
       itemID
+      status
     }
     registry {
       id

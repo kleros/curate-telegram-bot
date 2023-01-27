@@ -30,11 +30,13 @@ const handleRequestResolved = async (
   const twitterId = await dbAttempt(key, db)
 
   // todo itemName could make message too large
-  const message = `${
-    event.details.requestType === "RegistrationRequested"
-      ? `${capitalizeFirstLetter(meta.itemName)} accepted into the`
-      : `${capitalizeFirstLetter(meta.itemName)} removed from the`
-  } ${meta.tcrTitle} List in ${config.NETWORK_NAME}.
+  const message = `
+    ${capitalizeFirstLetter(meta.itemName)}
+    ${event.details.itemStatus === "Registered"
+      ? " accepted into the"
+      : event.details.itemStatus === "Absent" ? " removed from the" : " has finalized its request in"
+    }
+    ${" "+meta.tcrTitle} List in ${config.NETWORK_NAME}.
     \n\nListing: ${link}`
 
   console.info("-------vvvvvvv-------")
