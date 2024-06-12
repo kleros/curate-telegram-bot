@@ -32,9 +32,6 @@ const getIncluderList = async (tcr: string) => {
   const response = (await fetch(config.SUBGRAPH_URL, {
     method: "POST",
     body: JSON.stringify(subgraphQuery),
-    headers: {
-      'Content-Type': 'application/json',
-    }
   })) as any
 
   const { data } = (await response.json()) as any

@@ -564,9 +564,6 @@ const getEvents = async (
   const response = await fetch(config.SUBGRAPH_URL, {
     method: "POST",
     body: JSON.stringify({ query: fullQuery }),
-    headers: {
-      'Content-Type': 'application/json',
-    }
   })
 
   const { data } = (await response.json()) as any
